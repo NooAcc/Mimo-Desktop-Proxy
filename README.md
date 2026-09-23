@@ -1,81 +1,110 @@
 # Mimo Desktop Proxy _(mimo-proxy)_
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
 Xiaomi MiMo reverse proxy
 
-Mimo Desktop Proxy 是一个面向局域网自用场景的小米 MiMo 反向代理。它把 MiMo 的私有聊天接口转换为 OpenAI 兼容的 Chat Completions 与 Responses API，并提供多账号、Cookie 自动续期、流式输出、推理内容、工具调用和用量信息转发。
+Mimo Desktop Proxy is a local-network reverse proxy for Xiaomi MiMo. It converts
+MiMo's private chat protocol into OpenAI-compatible Chat Completions and
+Responses APIs, with multi-account support, automatic Cookie renewal, streaming,
+reasoning content, tool calls, and usage forwarding.
 
-项目使用 Node.js 内置模块实现，不依赖第三方运行时库。每个 `config/auth-<userId>.json` 对应一个账号和一个监听端口，便于在同一台主机上隔离不同账号的会话与额度。
+The project uses only built-in Node.js modules and has no third-party runtime
+dependencies. Each `config/auth-<userId>.json` file represents one account and
+one listening port, which keeps sessions and quotas isolated when multiple
+accounts run on the same host.
 
-GitHub 仓库名使用 `Mimo-Desktop-Proxy`，而 npm 包名和 CLI 仍为 `mimo-proxy`，以保持现有脚本和镜像名称兼容。
+The GitHub repository is named `Mimo-Desktop-Proxy`, while the npm package and
+CLI remain `mimo-proxy` for compatibility with existing scripts and image names.
 
-## 目录
+## Table of Contents
 
-- [安全](#安全)
-- [背景](#背景)
-- [安装](#安装)
-- [用法](#用法)
-- [多账号与凭据](#多账号与凭据)
-- [配置](#配置)
+- [Security](#security)
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [Multi-Account and Credentials](#multi-account-and-credentials)
+- [Configuration](#configuration)
 - [Docker](#docker)
-- [运行与维护](#运行与维护)
-- [开发与测试](#开发与测试)
+- [Operations and Maintenance](#operations-and-maintenance)
+- [Development and Testing](#development-and-testing)
 - [API](#api)
-- [维护者](#维护者)
-- [如何贡献](#如何贡献)
-- [许可证](#许可证)
+- [Maintainers](#maintainers)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 安全
+## Security
 
-默认配置以可信局域网为前提，不应直接暴露到公网：
+The default configuration assumes a trusted local network. Do not expose the
+proxy directly to the public internet.
 
-- 默认监听 `0.0.0.0:3000`，且 `apiKey` 为空。此时同一网络内任何能够访问端口的主机都可调用 `/v1/*`。
-- 单个账号凭据位于 `config/auth-<userId>.json`。该文件包含 `cookie` 与 `passToken`，必须限制权限并加入 `.gitignore`。
-- `GET /health` 与 `GET /auth/status` 不受 `apiKey` 保护。`/auth/status` 会返回账号 ID、凭据文件路径、上游地址、Cookie 名称和 token 到期状态，但不会返回密钥明文。
-- 服务启用 `Access-Control-Allow-Origin: *`。不要将管理端口、MiMo 调试端口 `9222` 或代理端口暴露到不可信网络。
-- 请求体和 Responses 累计输出默认不设上限。若服务可能接收不可信请求，应在外层网关限制请求大小、速率和来源。
-- 远程凭据更新接口已移除。凭据只允许通过本机文件维护或由本机 SSO 自动续期。
+- The default listener is `0.0.0.0:3000`, and `apiKey` is empty. Any host that
+  can reach the port can call `/v1/*`.
+- Account credentials are stored in `config/auth-<userId>.json`. These files
+  contain `cookie` and `passToken`, so their permissions must be restricted and
+  they must not be committed to Git.
+- `GET /health` and `GET /auth/status` are not protected by `apiKey`.
+  `/auth/status` returns the account ID, credential file path, upstream URL,
+  Cookie names, and token expiry state, but never returns secret values.
+- The service sends `Access-Control-Allow-Origin: *`. Do not expose
+  administrative ports, the MiMo debugging port `9222`, or proxy ports to an
+  untrusted network.
+- Request bodies and accumulated Responses output have no default size limit.
+  If the service may receive untrusted requests, enforce request size, rate, and
+  source restrictions in a fronting gateway.
+- The remote credential update endpoint has been removed. Credentials can only
+  be maintained through local files or local SSO renewal.
 
-生产或多人共享环境建议至少设置：
+For production or shared environments, set at least:
 
 ```toml
 apiKey = "replace-with-a-long-random-secret"
 ```
 
-## 背景
+## Background
 
-MiMo 桌面客户端的聊天接口使用专用 Cookie、请求头和 SSE 数据结构，不能直接作为标准 OpenAI 后端使用。本项目位于客户端与 MiMo 上游之间，完成协议转换、账号隔离和凭据生命周期管理。
+The MiMo desktop client uses private Cookies, request headers, and SSE payloads
+for chat. Those interfaces are not directly compatible with standard OpenAI
+clients. This project sits between the client and MiMo upstream and handles
+protocol translation, account isolation, and credential lifecycle management.
 
-主要设计目标：
+The main design goals are:
 
-- 提供 OpenAI SDK 可直接使用的 Chat Completions 与 Responses 接口。
-- 让一个账号对应一个端口，避免在请求中传递账号选择参数。
-- 使用 `passToken` 自动换取聊天 `serviceToken`，并在 Cookie 失效或临近过期时刷新。
-- 保留流式响应、推理文本、工具调用、refusal 和 usage 等 MiMo 上游信息。
-- 在没有第三方依赖的前提下运行，便于直接使用 Node.js 或 Docker 部署。
+- Provide Chat Completions and Responses APIs that OpenAI SDKs can use directly.
+- Map one account to one port so account selection is not passed in each request.
+- Exchange `passToken` for a chat `serviceToken` automatically and refresh it
+  when the Cookie expires or is close to expiry.
+- Preserve MiMo upstream streaming, reasoning text, tool calls, refusals, and
+  usage information.
+- Run without third-party dependencies so the service can be deployed with
+  Node.js or Docker alone.
 
-抽象依赖如下：
+Abstract dependencies are:
 
-- Node.js `>= 18.0.0`。
-- 访问 MiMo 官方上游、小米 SSO 和桌面端版本清单的网络环境。
-- 可选：已登录的 MiMo 桌面客户端，用于通过 CDP 导出根凭据。
-- 可选：Docker 或 Docker Compose，用于容器部署。
+- Node.js `>= 18.0.0`.
+- Network access to the MiMo upstream, Xiaomi SSO, and the desktop version
+  manifest.
+- Optional: a signed-in MiMo desktop client to export root credentials through
+  CDP.
+- Optional: Docker or Docker Compose for container deployment.
 
-## 安装
+## Install
 
-### 依赖
+### Dependencies
 
-运行代理只需要 Node.js 18 或更高版本。项目没有 npm 运行时依赖，因此不需要执行 `npm install`。
+The proxy only requires Node.js 18 or later. It has no npm runtime
+dependencies, so `npm install` is not required.
 
 ```sh
 git clone https://github.com/NooAcc/Mimo-Desktop-Proxy.git
 cd Mimo-Desktop-Proxy
 ```
 
-准备配置目录：
+Prepare the configuration directory:
 
-```sh
+```powershell
 # Windows PowerShell
 New-Item -ItemType Directory -Force config | Out-Null
 Copy-Item config/config.toml.example config/config.toml
@@ -87,7 +116,7 @@ mkdir -p config
 cp config/config.toml.example config/config.toml
 ```
 
-推荐的目录结构：
+The recommended directory layout is:
 
 ```text
 config/
@@ -96,52 +125,60 @@ config/
   auth-<another-userId>.json
 ```
 
-### 更新
+### Updating
 
-普通安装使用 Git 更新：
+For a normal Git installation:
 
 ```sh
 git pull
 npm test
 ```
 
-`config/` 不在项目源码内管理，更新前仍应自行备份。Docker 部署使用 `docker pull` 或 `docker compose pull` 更新镜像。
+Files under `config/` are not managed by the source repository. Back them up
+before updating. Docker deployments should be updated with `docker pull` or
+`docker compose pull`.
 
-## 用法
+## Usage
 
-### 1. 从 MiMo 桌面客户端导出凭据
+### 1. Export Credentials from the MiMo Desktop Client
 
-首次运行时，需要从已登录的 MiMo 桌面客户端导出 `passToken`、`userId` 和聊天 Cookie。
+On first run, export `passToken`, `userId`, and the chat Cookie from a
+signed-in MiMo desktop client.
 
-先退出 MiMo，再通过 Windows 的“运行”窗口或终端以调试模式启动：
+Exit MiMo first, then start it in debugging mode from the Windows Run dialog or
+a terminal:
 
 ```text
-"<MiMo 安装路径>\Xiaomi MiMo.exe" --inspect=127.0.0.1:9222
+"<MiMo installation path>\Xiaomi MiMo.exe" --inspect=127.0.0.1:9222
 ```
 
-确认客户端已登录目标小米账号，然后在项目根目录执行：
+Confirm that the client is signed in to the intended Xiaomi account, then run
+the following command from the repository root:
 
 ```sh
 npm run pass-token -- --save
 ```
 
-成功后生成：
+A successful run creates:
 
 ```text
 config/auth-<userId>.json
 ```
 
-脚本只会打印脱敏摘要。不要将生成的凭据文件提交到 Git。
+The script only prints redacted summaries. Do not commit generated credential
+files to Git.
 
-### 2. 启动代理
+### 2. Start the Proxy
 
 ```sh
 npm start
 ```
 
-启动时会扫描 `config/auth-*.json`，按 `userId` 排序，然后从 `config.toml` 的 `port` 开始依次分配端口。没有凭据文件时，进程会启动失败并给出提示。
+At startup, the proxy scans `config/auth-*.json`, sorts accounts by `userId`,
+and assigns ports sequentially starting at `port` from `config.toml`. If no
+credential files are found, startup fails with an explanatory message.
 
-常用检查命令：
+Common checks:
 
 ```sh
 curl -s http://127.0.0.1:3000/health
@@ -149,17 +186,17 @@ curl -s http://127.0.0.1:3000/auth/status
 curl -s http://127.0.0.1:3000/v1/models
 ```
 
-### 3. 接入 OpenAI 客户端
+### 3. Connect an OpenAI Client
 
-每个账号使用自己的端口：
+Each account uses its own port:
 
-| 设置 | 值 |
+| Setting | Value |
 | --- | --- |
-| Base URL | `http://<代理主机>:<账号端口>/v1` |
-| API Key | 未设置 `apiKey` 时可填任意值；设置后必须匹配 |
-| 模型 | `mimo-v2.6-pro` 或 `mimo-v2.6-flash` |
+| Base URL | `http://<proxy-host>:<account-port>/v1` |
+| API Key | Any value when `apiKey` is unset; it must match when configured |
+| Model | `mimo-v2.6-pro` or `mimo-v2.6-flash` |
 
-端口分配规则：
+Port assignment example:
 
 ```text
 config.toml: port = 3000
@@ -167,7 +204,7 @@ auth-100.json -> http://127.0.0.1:3000/v1
 auth-200.json -> http://127.0.0.1:3001/v1
 ```
 
-常用请求示例：
+Chat Completions example:
 
 ```sh
 curl -s http://127.0.0.1:3000/v1/chat/completions \
@@ -175,10 +212,12 @@ curl -s http://127.0.0.1:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "mimo-v2.6-pro",
-    "messages": [{"role": "user", "content": "你好"}],
+    "messages": [{"role": "user", "content": "Hello"}],
     "stream": true
   }'
 ```
+
+Responses example:
 
 ```sh
 curl -s http://127.0.0.1:3000/v1/responses \
@@ -186,54 +225,60 @@ curl -s http://127.0.0.1:3000/v1/responses \
   -H "Content-Type: application/json" \
   -d '{
     "model": "mimo-v2.6-pro",
-    "input": "你好",
+    "input": "Hello",
     "stream": false
   }'
 ```
 
 ### CLI
 
-项目通过 `npm` scripts 提供以下命令：
+The project exposes the following commands through npm scripts:
 
-| 命令 | 说明 |
+| Command | Description |
 | --- | --- |
-| `npm start` | 启动代理，自动发现多账号并监听多个端口 |
-| `npm test` | 运行 Node.js 内置测试套件 |
-| `npm run pass-token -- --save` | 通过 CDP 导出 `passToken` 并写入 `config/auth-<userId>.json` |
-| `npm run cookie` | 导出聊天 Cookie 和 `passToken` |
-| `npm run cookie -- --verify-only` | 校验 `config/` 中第一个凭据文件并测试上游 |
-| `npm run capture` | 采集 MiMo 客户端真实请求，默认写入 `captures/` |
-| `npm run verify:live` | 发起真实上游请求，验证当前凭据 |
-| `npm run test:auto-refresh` | 运行自动刷新专项测试脚本 |
+| `npm start` | Start the proxy, discover accounts, and listen on multiple ports |
+| `npm test` | Run the Node.js built-in test suite |
+| `npm run pass-token -- --save` | Export `passToken` through CDP and write `config/auth-<userId>.json` |
+| `npm run cookie` | Export the chat Cookie and `passToken` |
+| `npm run cookie -- --verify-only` | Verify the first credential file in `config/` and test upstream access |
+| `npm run capture` | Capture a real MiMo client request; output defaults to `captures/` |
+| `npm run verify:live` | Make real upstream requests to verify the current credentials |
+| `npm run test:auto-refresh` | Run the dedicated automatic-refresh test script |
 
-`capture` 和 `verify:live` 会访问真实上游并消耗账号额度。
+`capture` and `verify:live` contact the real upstream and consume account quota.
 
-## 多账号与凭据
+## Multi-Account and Credentials
 
-### 账号规划
+### Account Planning
 
-`config.toml` 中的 `port` 是多账号的基准端口。账号按 `userId` 稳定排序后依次使用：
+`port` in `config.toml` is the base port for multi-account mode. After a stable
+sort by `userId`, accounts use ports in this order:
 
 ```text
-账号 0 -> port
-账号 1 -> port + 1
-账号 2 -> port + 2
+account 0 -> port
+account 1 -> port + 1
+account 2 -> port + 2
 ```
 
-启动日志中的 `multi_account.planned` 会列出账号、文件和端口。`GET /health` 会返回当前监听端口对应的 `account.userId`，可用于确认端口归属。
+The `multi_account.planned` startup log lists each account, file, and port.
+`GET /health` returns the `account.userId` for the current listening port,
+which can be used to confirm port ownership.
 
-### 文件职责
+### File Responsibilities
 
-| 文件 | 内容 |
+| File | Contents |
 | --- | --- |
-| `config/config.toml` | 监听地址、basePort、模型、API Key、日志、共享身份和上游参数 |
-| `config/auth-<userId>.json` | `cookie`、`passToken`、`userId`、`cUserId` 和刷新时间 |
+| `config/config.toml` | Listen address, basePort, models, API key, logging, shared identity, and upstream settings |
+| `config/auth-<userId>.json` | `cookie`, `passToken`, `userId`, `cUserId`, and refresh timestamps |
 
-`sid`、`clientVersion` 和 `source` 属于账号无关身份，写在 `config.toml` 的 `[auth]` 中。旧版 `auth.json`、`cookie.txt` 和 `pass-token.json` 不再加载。
+`sid`, `clientVersion`, and `source` are account-independent identity fields and
+belong in the `[auth]` table in `config.toml`. Legacy `auth.json`,
+`cookie.txt`, and `pass-token.json` files are no longer loaded.
 
-### 手动凭据包
+### Manual Credential Files
 
-如果已有可用聊天 Cookie，可以手工创建 `config/auth-<userId>.json`：
+If a valid chat Cookie is already available, create
+`config/auth-<userId>.json` manually:
 
 ```json
 {
@@ -242,7 +287,7 @@ curl -s http://127.0.0.1:3000/v1/responses \
 }
 ```
 
-若需要自动续期，同时提供根凭据：
+To enable automatic renewal, also provide the root credentials:
 
 ```json
 {
@@ -254,32 +299,38 @@ curl -s http://127.0.0.1:3000/v1/responses \
 }
 ```
 
-凭据文件采用 `0600` 权限写入。运行中修改凭据文件后，建议重启代理，确保内存状态与文件内容一致。
+Credential files are written with `0600` permissions. After modifying a
+credential file while the proxy is running, restart it so in-memory state and
+the file content stay consistent.
 
-### 自动续期流程
+### Automatic Renewal Flow
 
 ```text
-客户端请求账号端口
-  -> 读取当前账号的 Cookie
-  -> Cookie 可用时直接请求 MiMo
-  -> Cookie 缺失或上游返回 401 时执行 SSO 刷新
-  -> passToken 临近过期时执行滑动续期
-  -> 更新内存状态并写回 auth-<userId>.json
+client requests an account port
+  -> read the current account Cookie
+  -> use MiMo directly when the Cookie is valid
+  -> perform SSO renewal when the Cookie is missing or upstream returns 401
+  -> perform sliding renewal when passToken is close to expiry
+  -> update memory state and write auth-<userId>.json
 ```
 
-自动续期依赖有效的 `passToken` 和 `userId`。账号退出登录、修改密码、触发风控或长期无请求时，仍可能需要重新登录 MiMo 并再次导出凭据。
+Automatic renewal requires a valid `passToken` and `userId`. Signing out,
+changing a password, triggering risk controls, or long periods without
+requests may still require signing in to MiMo again and exporting new
+credentials.
 
-## 配置
+## Configuration
 
-配置查找顺序：
+Configuration is resolved in this order:
 
 1. `config/config.toml`
-2. 项目根目录的 `config.toml`
-3. 内置默认值
+2. `config.toml` in the project root
+3. Built-in defaults
 
-凭据文件始终从最终配置目录下扫描。修改 `config.toml` 后需要重启代理。
+Credential files are always scanned from the final configuration directory.
+Restart the proxy after changing `config.toml`.
 
-### 基础配置
+### Basic Configuration
 
 ```toml
 host = "0.0.0.0"
@@ -302,38 +353,42 @@ format = "json"
 file = ""
 ```
 
-### 常用配置项
+### Common Settings
 
-| 键 | 默认值 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `host` | `0.0.0.0` | 监听地址 |
-| `port` | `3000` | 多账号 basePort |
-| `models` | `["mimo-v2.6-pro", "mimo-v2.6-flash"]` | 暴露给客户端的模型列表 |
-| `apiKey` | 空 | 设置后 `/v1/*` 需要 Bearer 认证 |
-| `auth.autoRefresh` | `true` | 启用 SSO Cookie 自动续期 |
-| `auth.passTokenRenewBeforeMs` | `604800000` | passToken 过期前 7 天触发续期 |
-| `auth.refreshIntervalMs` | `0` | 强制 SSO 间隔，`0` 表示按需刷新 |
-| `auth.clientVersionRefresh` | `true` | 从云端清单同步 clientVersion |
-| `auth.clientVersionRefreshIntervalMs` | `7200000` | 清单检查基准间隔，2 小时 |
-| `auth.clientVersionRefreshJitterMs` | `3600000` | 清单检查随机抖动，最多正负 1 小时 |
-| `upstream.timeoutMs` | `0` | 上游超时，`0` 表示不限时 |
-| `logging.level` | `info` | `debug`、`info`、`warn`、`error` 或 `silent` |
-| `logging.format` | `json` | `json` 或 `text` |
-| `logging.file` | 空 | 日志文件路径 |
-| `logging.maxBytes` | `10485760` | 单个日志文件大小上限 |
-| `logging.maxFiles` | `5` | 轮转保留数量 |
+| `host` | `0.0.0.0` | Listen address |
+| `port` | `3000` | Multi-account base port |
+| `models` | `["mimo-v2.6-pro", "mimo-v2.6-flash"]` | Models exposed to clients |
+| `apiKey` | Empty | When set, `/v1/*` requires Bearer authentication |
+| `auth.autoRefresh` | `true` | Enable automatic SSO Cookie renewal |
+| `auth.passTokenRenewBeforeMs` | `604800000` | Renew passToken 7 days before expiry |
+| `auth.refreshIntervalMs` | `0` | Forced SSO interval; `0` refreshes on demand |
+| `auth.clientVersionRefresh` | `true` | Sync clientVersion from the cloud manifest |
+| `auth.clientVersionRefreshIntervalMs` | `7200000` | Base manifest check interval, 2 hours |
+| `auth.clientVersionRefreshJitterMs` | `3600000` | Manifest check jitter, up to plus or minus 1 hour |
+| `upstream.timeoutMs` | `0` | Upstream timeout; `0` disables the timeout |
+| `logging.level` | `info` | `debug`, `info`, `warn`, `error`, or `silent` |
+| `logging.format` | `json` | `json` or `text` |
+| `logging.file` | Empty | Log file path |
+| `logging.maxBytes` | `10485760` | Maximum size per log file |
+| `logging.maxFiles` | `5` | Number of rotated files to retain |
 
-完整示例见 [config.toml.example](config/config.toml.example)。
+See [config/config.toml.example](config/config.toml.example) for the complete
+example.
 
-### clientVersion 同步
+### clientVersion Synchronization
 
-代理默认每 2 小时正负 1 小时检查一次桌面端版本清单：
+By default, the proxy checks the desktop version manifest every 2 hours with up
+to 1 hour of jitter:
 
 ```text
 https://mimocode-cdn.xiaomimimo.com/mimocode/mimodesktop/manifest.json
 ```
 
-当平台版本发生变化时，新的 `clientVersion` 会写入 `config.toml` 的 `[auth]`。当前状态可从 `GET /auth/status` 的以下字段查看：
+When the platform version changes, the new `clientVersion` is written back to
+the `[auth]` table in `config.toml`. The following fields from
+`GET /auth/status` show the current state:
 
 - `clientVersion`
 - `identitySource`
@@ -342,9 +397,12 @@ https://mimocode-cdn.xiaomimimo.com/mimocode/mimodesktop/manifest.json
 
 ## Docker
 
-仓库提供 [Dockerfile](Dockerfile) 和 [compose.yaml](compose.yaml)。GitHub Actions 构建的镜像发布到 GitHub Container Registry（GHCR），运行时只包含 Node.js 内置模块，不执行依赖安装。
+The repository includes [Dockerfile](Dockerfile) and
+[compose.yaml](compose.yaml). Images built by GitHub Actions are published to
+the GitHub Container Registry (GHCR). The runtime image contains only built-in
+Node.js modules and does not install dependencies.
 
-准备宿主机目录：
+Prepare the host directory:
 
 ```text
 config/
@@ -352,7 +410,7 @@ config/
   auth-<userId>.json
 ```
 
-直接运行：
+Run directly:
 
 ```sh
 docker run -d \
@@ -363,139 +421,157 @@ docker run -d \
   ghcr.io/nooacc/mimo-desktop-proxy:latest
 ```
 
-使用 Compose：
+Run with Compose:
 
 ```sh
 docker compose up -d
 ```
 
-部署注意事项：
+Deployment notes:
 
-- Compose 使用 host 网络，端口由 `config/config.toml` 的 `port` 决定。
-- Compose 固定使用 `ghcr.io/nooacc/mimo-desktop-proxy:latest`。
-- 配置固定从仓库根目录的 `./config` 挂载，不需要环境变量。
-- GHCR 包若保持私有，拉取前需要执行 `docker login ghcr.io`；公开包可直接拉取。
-- 容器用户为 `node`，UID 为 `1000`，需要能够读取和写入挂载的 `config/`。
-- 健康检查默认访问第一个账号的 `port`。
+- Compose uses host networking. The listening port comes from
+  `config/config.toml`.
+- Compose pins `ghcr.io/nooacc/mimo-desktop-proxy:latest`.
+- Configuration is always mounted from the repository's `./config` directory;
+  no environment variables are required.
+- If the GHCR package remains private, run `docker login ghcr.io` before
+  pulling it. Public packages can be pulled directly.
+- The container runs as the `node` user with UID `1000`, which must be able to
+  read and write the mounted `config/` directory.
+- The health check uses the first account's `port` by default.
 
-GHCR 使用说明见 [GHCR.md](GHCR.md)。
+See [GHCR.md](GHCR.md) for GHCR-specific instructions.
 
-## 运行与维护
+## Operations and Maintenance
 
-### 健康检查
+### Health Check
 
 ```sh
 curl -s http://127.0.0.1:3000/health
 ```
 
-响应包含服务状态和当前账号摘要。该接口不访问 MiMo，可用于容器健康检查和端口识别。
+The response contains service health and a summary of the current account. It
+does not contact MiMo, so it is suitable for container health checks and port
+identification.
 
-### 身份与凭据状态
+### Identity and Credential Status
 
 ```sh
 curl -s http://127.0.0.1:3000/auth/status
 ```
 
-重点字段：
+Key fields:
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
-| `accountId` / `accountUserId` | 当前账号标识 |
-| `port` | 当前监听端口 |
-| `authFile` | 当前账号凭据文件 |
-| `hasRuntimeCookie` | 内存中是否存在聊天 Cookie |
-| `hasServiceToken` | Cookie 是否包含 `serviceToken` |
-| `hasPassToken` | 是否存在可用的根凭据 |
-| `passTokenExpiresAt` | passToken 到期时间 |
-| `passTokenDaysLeft` | passToken 剩余天数 |
-| `cookieRefreshedAt` | 最近 Cookie 刷新时间 |
-| `lastSsoAt` | 最近 SSO 成功时间 |
-| `clientVersion` | 当前使用的客户端版本 |
-| `lastClientVersionCheckAt` | 最近版本清单检查时间 |
+| `accountId` / `accountUserId` | Current account identifier |
+| `port` | Current listening port |
+| `authFile` | Credential file for the current account |
+| `hasRuntimeCookie` | Whether a chat Cookie exists in memory |
+| `hasServiceToken` | Whether the Cookie contains `serviceToken` |
+| `hasPassToken` | Whether root credentials are available |
+| `passTokenExpiresAt` | passToken expiry time |
+| `passTokenDaysLeft` | Days remaining before passToken expiry |
+| `cookieRefreshedAt` | Most recent Cookie refresh time |
+| `lastSsoAt` | Most recent successful SSO time |
+| `clientVersion` | Client version currently in use |
+| `lastClientVersionCheckAt` | Most recent manifest check time |
 
-### 端口排障
+### Port Troubleshooting
 
-启动日志中的 `multi_account.planned` 会输出文件、userId 与端口对照表。若不知道某个端口属于哪个账号，可执行：
+The `multi_account.planned` startup log prints a mapping of files, user IDs, and
+ports. If the owner of a port is unclear, run:
 
 ```sh
-curl -s http://127.0.0.1:<端口>/health
+curl -s http://127.0.0.1:<port>/health
 ```
 
-### 常见故障
+### Common Failures
 
-| 现象 | 处理 |
+| Symptom | Resolution |
 | --- | --- |
-| 启动提示找不到凭据 | 运行 `npm run pass-token -- --save`，或把 `auth-<userId>.json` 放入 `config/` |
-| `passTokenDaysLeft` 很小并持续 401 | 重新登录 MiMo，再次导出凭据 |
-| 上游连接失败 | 检查网络、`upstream.url` 和上游是否支持 HTTP/2 |
-| 客户端收到 401 | 检查代理 `apiKey` 与请求头中的 Bearer 值是否一致 |
-| Docker 无法写入凭据 | 检查宿主机 `config/` 对容器 UID 1000 的写权限 |
+| Startup reports that no credentials were found | Run `npm run pass-token -- --save`, or place `auth-<userId>.json` in `config/` |
+| `passTokenDaysLeft` is very small and 401 responses continue | Sign in to MiMo again and export new credentials |
+| Upstream connection fails | Check network access, `upstream.url`, and HTTP/2 support |
+| Client receives 401 | Check that the proxy `apiKey` and Bearer value match |
+| Docker cannot write credentials | Check that host `config/` is writable by container UID 1000 |
 
-## 开发与测试
+## Development and Testing
 
-测试使用 Node.js 内置测试运行器，不依赖第三方测试框架：
+Tests use the Node.js built-in test runner and do not require a third-party
+framework:
 
 ```sh
 npm test
 ```
 
-测试覆盖协议转换、多账号端口、SSO 刷新、HTTP/2、SSE、工具调用修复、日志脱敏、鉴权和连接中断等路径。
+Coverage includes protocol translation, multi-account ports, SSO refresh,
+HTTP/2, SSE, tool-call repair, log redaction, authentication, and aborted
+connections.
 
-开发时建议遵守以下约定：
+Development guidelines:
 
-- 保持零运行时依赖。
-- 修改行为时同步补充 `test/` 下的测试。
-- 不在日志、测试夹具或提交内容中写入真实 Cookie、passToken 或聊天正文。
-- 修改协议行为后，同时验证 Chat Completions 与 Responses 两条入口。
+- Keep the runtime dependency-free.
+- Add or update tests under `test/` when behavior changes.
+- Never put real Cookies, passTokens, or chat content in logs, fixtures, or
+  commits.
+- After changing protocol behavior, verify both Chat Completions and Responses.
 
 ## API
 
-### HTTP 接口
+### HTTP Endpoints
 
-| 方法 | 路径 | 认证 | 说明 |
+| Method | Path | Authentication | Description |
 | --- | --- | --- | --- |
-| `GET` | `/`、`/health` | 否 | 返回进程和当前账号健康信息 |
-| `GET` | `/auth/status` | 否 | 返回脱敏后的账号与凭据状态 |
-| `GET` | `/v1/models` | 受 `apiKey` 保护 | 返回 OpenAI 风格模型列表 |
-| `POST` | `/v1/chat/completions` | 受 `apiKey` 保护 | Chat Completions |
-| `POST` | `/v1/responses` | 受 `apiKey` 保护 | Responses |
+| `GET` | `/`, `/health` | No | Return process and current-account health information |
+| `GET` | `/auth/status` | No | Return redacted account and credential status |
+| `GET` | `/v1/models` | Protected by `apiKey` | Return an OpenAI-style model list |
+| `POST` | `/v1/chat/completions` | Protected by `apiKey` | Chat Completions |
+| `POST` | `/v1/responses` | Protected by `apiKey` | Responses |
 
-同时接受不带 `/v1` 的 `/chat/completions` 和 `/responses`。服务支持 CORS 预检，并通过 `X-Request-Id` 关联请求日志。
+The `/chat/completions` and `/responses` paths without `/v1` are also accepted.
+The service supports CORS preflight and correlates request logs with
+`X-Request-Id`.
 
 ### Chat Completions
 
-请求会保留 OpenAI Chat Completions 的常用字段，并在转发上游时强制启用流式模式。客户端请求 `stream: false` 时，代理会在本地聚合并返回普通 JSON。
+Requests preserve common OpenAI Chat Completions fields and force streaming when
+forwarding upstream. When a client requests `stream: false`, the proxy
+aggregates the response locally and returns regular JSON.
 
-支持：
+Supported features include:
 
 - `messages`
 - `model`
 - `stream`
 - `reasoning_effort`
 - `thinking`
-- `tools`、`functions`、`tool_choice`
+- `tools`, `functions`, and `tool_choice`
 - `response_format`
-- usage、reasoning content、tool calls 和 refusal
+- usage, reasoning content, tool calls, and refusals
 
-`mimo-auto` 会转换为 `mimo-pro`。未指定模型时使用 `models` 中的第一项。
+`mimo-auto` is translated to `mimo-pro`. If no model is specified, the first
+entry in `models` is used.
 
 ### Responses
 
-Responses 请求会转换为内部 Chat Completions 请求，再转换为 OpenAI Responses JSON 或 SSE 事件。
+Responses requests are converted to internal Chat Completions requests and then
+converted back to OpenAI Responses JSON or SSE events.
 
-支持：
+Supported features include:
 
-- 字符串或消息数组形式的 `input`
+- `input` as a string or an array of messages
 - `instructions`
-- `temperature`、`top_p`、`seed`、`stop`
-- `max_output_tokens` 与 `max_tokens`
+- `temperature`, `top_p`, `seed`, and `stop`
+- `max_output_tokens` and `max_tokens`
 - `reasoning.effort`
 - `text.format`
-- function、custom、namespace 和 additional tools
+- function, custom, namespace, and additional tools
 - `parallel_tool_calls`
-- 图片、工具输出媒体和 refusal
+- image inputs, tool-output media, and refusals
 
-该实现是无状态的，并固定使用 `store: false`。以下能力不支持：
+The implementation is stateless and always uses `store: false`. The following
+capabilities are not supported:
 
 - `previous_response_id`
 - `conversation`
@@ -503,14 +579,16 @@ Responses 请求会转换为内部 Chat Completions 请求，再转换为 OpenAI
 - `background`
 - `context_management`
 - `n > 1`
-- 服务端托管 Web Search
-- 由代理执行客户端工具
+- server-hosted Web Search
+- client tool execution by the proxy
 
-客户端必须发送完整历史。函数调用由客户端执行，再把完整调用结果传回下一轮请求。
+Clients must send the full history. Function calls are executed by the client,
+which then sends the complete tool results in the next request.
 
-### Node.js 导出
+### Node.js Exports
 
-[mimo_server.js](mimo_server.js) 导出以下主要入口，便于测试或嵌入：
+[mimo_server.js](mimo_server.js) exports the main entry points for tests or
+embedding:
 
 ```js
 import {
@@ -521,32 +599,61 @@ import {
 } from "./mimo_server.js";
 ```
 
-`createProxyServer(options)` 返回一个尚未监听的 `http.Server`。调用方需要自行调用 `listen()`，并可通过 `fetchImpl`、`authRuntime`、`logger` 等选项注入测试或自定义实现。
+`createProxyServer(options)` returns an `http.Server` that has not started
+listening. The caller must call `listen()` and can inject test or custom
+implementations through options such as `fetchImpl`, `authRuntime`, and
+`logger`.
 
-其余导出包括配置读取、账号发现、端口规划、自动认证、SSO 刷新和 clientVersion 刷新工具。具体签名可直接查看 [lib/](lib/) 下的模块。
+Additional exports cover configuration loading, account discovery, port
+planning, automatic authentication, SSO refresh, and clientVersion refresh. See
+the modules under [lib/](lib/) for exact signatures.
 
-## 维护者
+## Maintainers
 
 [@NooAcc](https://github.com/NooAcc)
 
-## 如何贡献
+## Contributing
 
-问题、兼容性反馈和功能建议请提交到 [GitHub Issues](https://github.com/NooAcc/Mimo-Desktop-Proxy/issues)。欢迎提交 Pull Request。
+Submit questions, compatibility reports, and feature requests through
+[GitHub Issues](https://github.com/NooAcc/Mimo-Desktop-Proxy/issues). Pull
+requests are welcome.
 
-提交前请满足以下要求：
+Before submitting a change:
 
-- 说明问题、复现步骤和预期行为。
-- 保持改动范围聚焦，并同步更新测试或文档。
-- 运行 `npm test`，确保现有行为没有回归。
-- 不要提交 `config/auth-*.json`、Cookie、passToken、聊天正文、抓包中的真实凭据或其他隐私数据。
-- 不要提交运行日志、构建产物或本地账号配置。
+- Describe the problem, reproduction steps, and expected behavior.
+- Keep the change focused and update tests or documentation as needed.
+- Run `npm test` and confirm that existing behavior has not regressed.
+- Do not submit `config/auth-*.json`, Cookies, passTokens, chat content, real
+  credentials from packet captures, or other private data.
+- Do not submit runtime logs, build output, or local account configuration.
 
-当前仓库没有独立的 `CONTRIBUTING.md` 或行为守则文件。
+Commit messages must follow the
+[Conventional Commits 1.0.0 specification](https://www.conventionalcommits.org/en/v1.0.0/).
+Use the form:
 
-## 许可证
+```text
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Common types include `feat`, `fix`, `docs`, `test`, `refactor`, `perf`,
+`build`, `ci`, and `chore`. Mark breaking changes with `!` after the type or
+scope, or add a `BREAKING CHANGE:` footer. For example:
+
+```text
+docs: add English README as default
+```
+
+The repository does not currently have a separate `CONTRIBUTING.md` or code of
+conduct.
+
+## License
 
 MIT
 
 Copyright (c) 2026 [@NooAcc](https://github.com/NooAcc)
 
-完整许可证文本见 [LICENSE](LICENSE)。
+See [LICENSE](LICENSE) for the full license text.
