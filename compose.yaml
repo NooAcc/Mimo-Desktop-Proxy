@@ -1,0 +1,33 @@
+services:
+  mimo-proxy:
+    # 镜像由 GitHub Actions 构建并推送到 GHCR。
+    image: ghcr.io/nooacc/mimo-desktop-proxy:latest
+    # 如需在本机自行构建，取消下面三行注释后执行 docker compose up -d --build
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    # host 网络：容器直接使用宿主机网络栈，
+    # 监听端口以 config/config.toml 中的 port 为准，无需 ports 映射。
+    network_mode: host
+    # 业务配置与 Cookie 统一放在宿主机 config/ 目录：
+    #   config/config.toml
+    #   config/auth-<userId>.json
+    volumes:
+      - type: bind
+        source: ./config
+        target: /app/config
+        bind:
+          # 宿主机需先创建 config/ 目录并放入文件
+          create_host_path: false
+      - logs:/app/logs
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  logs:

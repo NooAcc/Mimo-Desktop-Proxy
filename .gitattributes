@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Preserve captured bytes: replay tests use the original HTTP chunk lengths.
+*.sse -text

@@ -1,0 +1,9 @@
+# Allow only build instructions and runtime files into the build context.
+# In particular, .env, cookie.txt, captures, logs and Git history stay outside.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!mimo_server.js
+!lib/
+!lib/*.js

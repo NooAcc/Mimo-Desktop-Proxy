@@ -1,0 +1,31 @@
+{
+  "source": "MiMo Desktop 26.912.121036: final request after reading three frames from test.mp4. Context removed; call IDs, paths and image URLs replaced with test values.",
+  "status": 200,
+  "frameTimesSeconds": [0, 2, 4],
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Read video frames.",
+      "tool_calls": [
+        {"id": "call_frame_0", "type": "function", "function": {"name": "read", "arguments": "{\"file_path\":\"frame_0s.png\"}"}},
+        {"id": "call_frame_2", "type": "function", "function": {"name": "read", "arguments": "{\"file_path\":\"frame_2s.png\"}"}},
+        {"id": "call_frame_4", "type": "function", "function": {"name": "read", "arguments": "{\"file_path\":\"frame_4s.png\"}"}}
+      ]
+    },
+    {"role": "tool", "tool_call_id": "call_frame_0", "content": "Image read successfully"},
+    {"role": "tool", "tool_call_id": "call_frame_2", "content": "Image read successfully"},
+    {"role": "tool", "tool_call_id": "call_frame_4", "content": "Image read successfully"},
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "Attached file(s) from tool result:"},
+        {"type": "text", "text": "Tool \"read\" call call_frame_0 completed:"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/frame-0.png"}},
+        {"type": "text", "text": "Tool \"read\" call call_frame_2 completed:"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/frame-2.png"}},
+        {"type": "text", "text": "Tool \"read\" call call_frame_4 completed:"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/frame-4.png"}}
+      ]
+    }
+  ]
+}

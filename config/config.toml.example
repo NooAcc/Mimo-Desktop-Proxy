@@ -1,0 +1,61 @@
+# Mimo Desktop Proxy 配置文件
+# 推荐放置路径：config/config.toml（与 config/auth-*.json 同目录）
+# 本文件放运行参数 + 与账号无关的身份字段，不放账号密钥。
+# 账号凭据（cookie / passToken / userId / cUserId）只在 auth-<userId>.json。
+# 启动时自动扫描 config/auth-*.json，按 userId 排序后从 port 起顺序监听。
+# Docker 挂载宿主机 config/ 到容器 /app/config。
+
+# 局域网监听地址与 basePort。
+# 第 1 个账号监听 port，第 2 个 port+1，依此类推。
+host = "0.0.0.0"
+port = 3000
+
+# 可用模型列表；客户端未指定模型时使用第一项。
+models = ["mimo-v2.6-pro", "mimo-v2.6-flash"]
+
+# 可选代理 API Key。设置后，模型、Chat 和 Responses 入口需要 Bearer 认证。
+# GET /health 与 GET /auth/status 不受 apiKey 限制。
+# apiKey = "replace-with-your-own-key"
+
+[auth]
+# 与账号无关的客户端身份（所有账号共用）：
+sid = "mimopc"
+clientVersion = "26.914.142245"
+source = "mimocode-cli-free"
+
+# 多账号凭据文件：config/auth-<userId>.json（由 npm run pass-token -- --save 生成）。
+# 旧版 config/auth.json 不再加载。
+# 可选抓包查询超时（毫秒）。
+timeoutMs = 5000
+# 小米账号 SSO 自动刷新 Cookie（默认开启）。
+autoRefresh = true
+# passToken 过期前多久触发滑动续期（默认 7 天）。
+# passTokenRenewBeforeMs = 604800000
+# 强制 SSO 间隔毫秒；0 = 仅按需/按过期窗口。
+# refreshIntervalMs = 86400000
+# 云端 clientVersion 同步：约每 2h±1h 拉取桌面端 manifest；变更时写回本文件 [auth]。
+# clientVersionRefresh = true
+# clientVersionRefreshIntervalMs = 7200000
+# clientVersionRefreshJitterMs = 3600000
+# clientVersionManifestUrl = "https://mimocode-cdn.xiaomimimo.com/mimocode/mimodesktop/manifest.json"
+# 高级可选（一般不用改）：
+# ssoUrl = "https://account.xiaomi.com/pass/serviceLogin"
+# ssoUserAgent = "MiClaw/1.0"
+
+[upstream]
+# MiMo 聊天网关。HTTPS 上游必须协商 HTTP/2。
+url = "https://mimo-server-cn.xiaomimimo.com/api/route/chat/completions"
+# 上游请求超时（毫秒）。0 = 不限时。
+timeoutMs = 0
+
+[mitm]
+# 默认关闭。仅在账号凭据包无 cookie 且配置了 url 时才会尝试抓包。
+url = ""
+auth = ""
+
+[logging]
+level = "info"
+format = "json"
+file = ""
+maxBytes = 10485760
+maxFiles = 5

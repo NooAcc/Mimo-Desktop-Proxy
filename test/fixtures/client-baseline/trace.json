@@ -1,0 +1,72 @@
+{
+  "capturedAt": "2026-09-13T13:39:12.590Z",
+  "source": "MiMo original chat -> Electron session.fetch, before native Cookie insertion; raw response body after HTTP decoding",
+  "appVersion": "26.912.121036",
+  "request": {
+    "method": "POST",
+    "url": "https://mimo-server-cn.xiaomimimo.com/api/route/chat/completions",
+    "headers": {
+      "content-type": "application/json",
+      "x-client-version": "26.912.121036",
+      "x-mimo-source": "mimocode-cli-free",
+      "cookie": "[managed by Electron session]"
+    },
+    "cookieNames": [
+      "serviceToken",
+      "userId",
+      "mimopc_slh",
+      "mimopc_ph"
+    ],
+    "body": {
+      "model": "mimo-pro",
+      "messages": [
+        {
+          "role": "user",
+          "content": "请只回复 OK。这是接口兼容性测试，编号：mimo-proxy-60561571-8509-4bf3-9315-cabf6c0d5d9e"
+        }
+      ],
+      "stream": true,
+      "meta": {
+        "session_id": "mimo-proxy-60561571-8509-4bf3-9315-cabf6c0d5d9e"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream",
+      "date": "Sun, 13 Sep 2026 13:39:13 GMT",
+      "server": "MiFE/3.4.34",
+      "vary": "[redacted]",
+      "x-mife-upstream-status": "[redacted]",
+      "x-trace-id": "[redacted]"
+    },
+    "chunks": [
+      {
+        "elapsedMs": 751,
+        "bytes": 294
+      },
+      {
+        "elapsedMs": 890,
+        "bytes": 304
+      },
+      {
+        "elapsedMs": 953,
+        "bytes": 295
+      },
+      {
+        "elapsedMs": 1200,
+        "bytes": 588
+      },
+      {
+        "elapsedMs": 1216,
+        "bytes": 922
+      },
+      {
+        "elapsedMs": 1218,
+        "bytes": 13
+      }
+    ],
+    "endedBy": "done-marker"
+  }
+}

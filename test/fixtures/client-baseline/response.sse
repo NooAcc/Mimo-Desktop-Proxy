@@ -1,0 +1,18 @@
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":"","role":"assistant","tool_calls":null,"reasoning_content":null},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":null,"role":null,"tool_calls":null,"reasoning_content":"The user wants me"},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":null,"role":null,"tool_calls":null,"reasoning_content":" to only"},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":null,"role":null,"tool_calls":null,"reasoning_content":" reply \""},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":null,"role":null,"tool_calls":null,"reasoning_content":"OK\"."},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":"OK","role":null,"tool_calls":null,"reasoning_content":null},"finish_reason":null,"index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[{"delta":{"content":null,"role":null,"tool_calls":null,"reasoning_content":null},"finish_reason":"stop","index":0}],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk"}
+
+data:{"id":"2b812192f32a90df4dea9a3cf02d0f54_aa3b5826bda646d8945178a196363a21","choices":[],"created":1789306753,"model":"mimo-x-pro-preview","object":"chat.completion.chunk","usage":{"completion_tokens":14,"prompt_tokens":57,"total_tokens":71,"completion_tokens_details":{"reasoning_tokens":0},"prompt_tokens_details":{"cached_tokens":0}}}
+
+data:[DONE]
+

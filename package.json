@@ -1,0 +1,27 @@
+{
+  "name": "mimo-proxy",
+  "version": "1.0.0",
+  "description": "Xiaomi MiMo reverse proxy",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NooAcc/Mimo-Desktop-Proxy.git"
+  },
+  "type": "module",
+  "main": "mimo_server.js",
+  "bin": {
+    "mimo-server": "./mimo_server.js"
+  },
+  "scripts": {
+    "start": "node mimo_server.js",
+    "test": "node --test",
+    "capture": "node scripts/capture_mimo.js",
+    "cookie": "node scripts/export_cookie.js",
+    "pass-token": "node scripts/export_pass_token.js",
+    "verify:live": "node scripts/verify_live.js",
+    "test:auto-refresh": "node scripts/test_auto_refresh.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
