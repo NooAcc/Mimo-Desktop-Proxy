@@ -494,6 +494,7 @@ Responses 请求会转换为内部 Chat Completions 请求，再转换为 OpenAI
 - `reasoning.effort`
 - `text.format`
 - function、custom、namespace 和 additional tools
+- 忽略 `tool_search` 声明，并直接转发客户端工具
 - `parallel_tool_calls`
 - 图片、工具输出媒体和 refusal
 

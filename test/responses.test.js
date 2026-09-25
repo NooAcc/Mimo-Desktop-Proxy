@@ -243,6 +243,40 @@ test("Responses tools merge namespace and additional_tools declarations with sta
   assert.equal(buildResponsesRequest(body).request.tools[1].function.name, tool.name);
 });
 
+test("Responses ignores Codex tool_search declarations while forwarding client tools", () => {
+  const custom = { type: "custom", name: "apply_patch", description: "Apply a patch" };
+  const body = { model: "mimo-v2.6-pro", input: [
+    { type: "additional_tools", tools: [{ type: "tool_search" }] },
+    { role: "user", content: "Edit a file" }
+  ], tools: [
+    { type: "namespace", name: "functions", description: "Client tools", tools: [
+      echo,
+      custom,
+      { type: "tool_search", execution: "client" }
+    ] },
+    { type: "tool_search" }
+  ], tool_choice: "auto", parallel_tool_calls: true };
+  const copy = structuredClone(body);
+  const converted = buildResponsesRequest(body);
+
+  assert.deepEqual(body, copy);
+  assert.equal(converted.request.tools.length, 2);
+  assert.ok(converted.request.tools.every(tool => tool.type === "function"));
+  assert.equal(converted.tools.size, 2);
+  assert.equal(converted.request.tool_choice, "auto");
+  assert.equal(converted.request.parallel_tool_calls, true);
+  assert.deepEqual(converted.responseTools, [
+    { type: "namespace", name: "functions", description: "Client tools", tools: [echo, custom] }
+  ]);
+  const allowed = buildResponsesRequest({ ...input, tools: [echo, { type: "tool_search" }],
+    tool_choice: { type: "allowed_tools", mode: "auto", tools: [{ type: "tool_search" }, { type: "function", name: "echo" }] } });
+  assert.deepEqual(allowed.request.tools.map(tool => tool.function.name), ["echo"]);
+  assert.throws(
+    () => buildResponsesRequest({ ...input, tools: [echo, { type: "tool_search" }], tool_choice: { type: "tool_search" } }),
+    /Deferred tool search is not supported/
+  );
+});
+
 test("Responses tool choice accepts common object forms and allowed_tools", () => {
   for (const type of ["auto", "none", "required", "tool"]) {
     const converted = buildResponsesRequest({ ...input, tools: [echo], tool_choice: { type } });

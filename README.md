@@ -567,6 +567,7 @@ Supported features include:
 - `reasoning.effort`
 - `text.format`
 - function, custom, namespace, and additional tools
+- `tool_search` declarations are ignored while their client tools are forwarded directly
 - `parallel_tool_calls`
 - image inputs, tool-output media, and refusals
 
